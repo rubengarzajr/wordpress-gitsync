@@ -1,0 +1,143 @@
+.GS-title{
+  border-bottom: black 1px solid;
+  font-size: 1.5em;
+  margin-top: 20px;
+  margin-bottom: 20px;
+}
+
+.GS-sp10{
+  margin-bottom: 10px;
+}
+
+.GS-itembox{
+  border: 1px black solid;
+  margin: 0px 2px 2px 2px;
+  padding: 10px 10px 10px 10px;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-around;
+  align-items: stretch;
+}
+
+#GS-popup-bk{
+  z-index: 111111;
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  bottom: 0;
+  background-color: #000000c4;
+}
+
+#GS-popup{
+  z-index: 111112;
+  background-color: white;
+  position: fixed;
+  top: 30%;
+  right: 15%;
+  left: 15%;
+  height: 200px;
+  border: black 2px solid;
+  width: 70%;
+}
+
+.GS-popup-title{
+  font-size: 2em;
+  padding: 10px 10px;
+  border-bottom: 1px solid black;
+}
+
+.GS-popup-message{
+  font-size: 1.2em;
+  padding: 10px;
+}
+
+.GS-itembox-item{
+  flex-grow: 1;
+  flex-basis: 50%;
+}
+
+.GS-itemtitle{
+  font-size: 1.5em;
+  margin-bottom: 30px;
+  margin-top: 20px;
+}
+
+.GS-repo{
+  color:black;
+  font-size: 1.25em;
+  border-top: 1px solid black;
+  border-left: 1px solid black;
+  border-right: 1px solid black;
+  margin: 0px 2px 0px 2px;
+  padding: 10px 0px;
+  background-color: #a8d6ff;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: stretch;
+}
+
+.GS-repo-item{
+  flex-basis: 140px;
+}
+
+.GS-repo-item-title{
+  flex-grow: auto;
+  line-height: 28px;
+}
+
+.GS-preview-image{
+  width: 70%;
+  float: right;
+}
+
+.GS-no-image{
+  font-size: 2em;
+  position: relative;
+  top: 50%;
+  left: 50%;
+}
+
+.GS-reposync{
+  position: relative;
+  top: -53px;
+  left: 177px;
+}
+
+input.GS-add[type="submit"]{
+  color:green;
+  border-color: green;
+}
+
+
+input.GS-delete[type="submit"]{
+  color:red;
+  border-color: red;
+}
+
+.GS-close {
+  position: absolute;
+  right: 3px;
+  top: 3px;
+  width: 32px;
+  height: 32px;
+  opacity: 0.3;
+}
+.GS-close:hover {
+  opacity: 1;
+}
+.GS-close:before, .GS-close:after {
+  position: absolute;
+  left: 15px;
+  content: ' ';
+  height: 33px;
+  width: 4px;
+  background-color: #333;
+}
+.GS-close:before {
+  transform: rotate(45deg);
+}
+.GS-close:after {
+  transform: rotate(-45deg);
+}

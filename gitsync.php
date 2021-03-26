@@ -3,18 +3,25 @@
   Plugin Name: Git Sync
   Plugin URI:
   description: This pluging gits themes from git
-  Version: 0.1.0
+  Version: 1.0.0
   Author: Ruben Garza, Jr.
   Author URI:
   License: GPL2
   */
 
-  // Debugging
-  $debug_mode = TRUE;
+?>
 
-  function eLog($str,$numChar,$char){
-    global $debug_mode;
-    if (!$debug_mode){return;}
+<script type="text/javascript">
+  gitsync={title:'', message:''};
+</script>
+
+<?php
+
+  $gitsync_debug_mode = FALSE;
+
+  function gitsync_log($str,$numChar,$char){
+    global $gitsync_debug_mode;
+    if (!$gitsync_debug_mode){return;}
     $len     = strlen($str);
     if($len % 2 !== 0){
       $str .= " ";
@@ -33,9 +40,9 @@
     error_log( print_r('', true ) );
   }
 
-  function eNote($arr){
-    global $debug_mode;
-    if (!$debug_mode){return;}
+  function gitsync_log_multi($arr){
+    global $gitsync_debug_mode;
+    if (!$gitsync_debug_mode){return;}
 
     error_log( print_r('', true ) );
     foreach ($arr as $note) {
@@ -44,18 +51,19 @@
     error_log( print_r('', true ) );
   }
 
-
-  //Javascript
-  function jsMessage($title, $message){
+  function gitsync_js_message($title, $message){
     ?>
     <script type="text/javascript">
-      gitsync = {title:'<?php echo $title; ?>', message:'<?php echo $message; ?>'};
+      gitsync = {
+        title:'<?php echo $title; ?>',
+        message:'<?php echo $message; ?>'
+      };
     </script>
     <?php
   }
 
   // Helper Functions
-  function get_options(){
+  function gitsync_get_options(){
     $options = get_option('gitsyncplugin');
     if ($options === FALSE){
       $options = '{"themes":[],"plugins":[]}';
@@ -64,7 +72,7 @@
     return json_decode($options);
   }
 
-  function removeDir($target)
+  function gitsync_remove_directory($target)
   {
     if (!file_exists($target)) { return; }
     $directory = new RecursiveDirectoryIterator($target,  FilesystemIterator::SKIP_DOTS);
@@ -75,42 +83,45 @@
     rmdir($target);
   }
 
-  function update_githubsync_data($options){
+  function gitsync_update_githubsync_data($options){
     update_option('gitsyncplugin', json_encode($options));
   }
 
-  eLog('RUN PLUGIN', 80, '=');
-  eNote([date("d-m-Y h:i:s")]);
+  gitsync_log('RUN PLUGIN', 80, '=');
+  gitsync_log_multi([date("d-m-Y h:i:s")]);
 
   // Handle form submissions
-  add_action( 'init', 'submit_form' );
-  function submit_form() {
-    $options = get_options();
+  add_action( 'init', 'gitsync_submit_form' );
+  function gitsync_submit_form() {
+    $options = gitsync_get_options();
+    error_log( print_r('options', true ) );
+    error_log( print_r($options, true ) );
 
     // ----- Form: ADD a theme -----
     if( isset( $_POST['add_a_theme'] ) ) {
-      error_log( print_r( "--- ADD A THEME ---", true ) );
+      gitsync_log('Add a Theme',  24, '-');
       $error = FALSE;
 
       if (!isset($_POST['furi']) || $_POST['furi'] == '') { $error = TRUE; }
 
       if ($error) {
-        jsMessage('THEME ADD ERROR', 'Could not add this theme. Please check the URL address.');
-        eNote(['THEME ADD ERROR', 'Could not add this theme.']);
+        gitsync_js_message('THEME ADD ERROR', 'Could not add this theme. Please check the URL address.');
+        gitsync_log_multi(['THEME ADD ERROR', 'Could not add this theme.']);
         return;
       }
-      $newTheme = array("uri"=>$_POST['furi'], "token"=>$_POST['ftok']);
+      $newTheme = array("uri"=>esc_url_raw($_POST['furi']), "token"=>sanitize_key($_POST['ftok']));
       array_push($options->themes, $newTheme);
-      update_githubsync_data($options);
-      jsMessage('THEME ADDED', 'Theme at ' . $_POST['furi'] . ' was added.');
+      gitsync_update_githubsync_data($options);
+      gitsync_js_message('THEME ADDED', 'Theme at ' . esc_url_raw($_POST['furi']) . ' was added.');
     }
 
     // ----- Form: SYNC a theme -----
     if( isset( $_POST['sync_a_theme'] ) ) {
-      eLog('Sync a Theme', 24, '-');
-      $theme = $options->themes[$_POST['key']];
+      gitsync_log('Sync a Theme', 24, '-');
+      $theme = $options->themes[sanitize_key($_POST['key'])];
 
       if (!empty($_POST['reposync'])) {
+        $repoSync = sanitize_key($_POST['reposync']);
         $args = array();
         if ($theme->token !=='') {
           $args = array(
@@ -121,15 +132,15 @@
         }
 
         $parse = parse_url($theme->uri);
-        $uri   = "https://api.{$parse['host']}/repos{$parse['path']}/zipball/{$_POST['reposync']}";
+        $uri   = "https://api.{$parse['host']}/repos{$parse['path']}/zipball/{$repoSync}";
         $parts = explode("/",$parse['path']);
 
-        eNote(['Path:',$parse['path'],'URI',$uri]);
-        eNote(['Parts:',$parts]);
+        gitsync_log_multi(['Path:',$parse['path'],'URI',$uri]);
+        gitsync_log_multi(['Parts:',$parts]);
 
         $data = wp_remote_get( $uri, $args );
         $body  = $data['body'];
-        $file = plugin_dir_path( __FILE__ ). 'temp/' . $_POST['reposync'] . '.zip';
+        $file = plugin_dir_path( __FILE__ ). 'temp/' . $repoSync  . '.zip';
 
         $fp = fopen($file, "w");
 
@@ -137,13 +148,13 @@
           fwrite($fp, $body);
           fclose($fp);
 
-          $temp_dir = plugin_dir_path( __FILE__ ). 'temp/' . $_POST['reposync'];
-          removeDir($temp_dir);
+          $temp_dir = plugin_dir_path( __FILE__ ). 'temp/' . $repoSync ;
+          gitsync_remove_directory($temp_dir);
           mkdir($temp_dir);
 
           $zip = new ZipArchive;
           if ($zip->open($file) === TRUE) {
-              $zip->extractTo(plugin_dir_path( __FILE__ ). 'temp/' . $_POST['reposync']);
+              $zip->extractTo(plugin_dir_path( __FILE__ ) . 'temp/' . $repoSync);
               $zip->close();
               error_log( print_r('OK', true ) );
           } else {
@@ -163,25 +174,23 @@
             closedir($handle);
           }
           rename($temp_dir . '/'. $temp_find[0], $temp_dir . '/' . end($parts));
-          removeDir(get_theme_root() . '/' .end($parts));
+          gitsync_remove_directory(get_theme_root() . '/' .end($parts));
           rename($temp_dir . '/' . end($parts), get_theme_root() . '/' .end($parts) );
-          removeDir(plugin_dir_path( __FILE__ ). 'temp/' . $_POST['reposync']);
-          jsMessage('THEME SYNCED', 'Synced to ' . $_POST['reposync'] . '.');
+          gitsync_remove_directory(plugin_dir_path( __FILE__ ). 'temp/' . $repoSync);
+          gitsync_js_message('THEME SYNCED', 'Synced to ' . $repoSync . '.');
         } else {
-          jsMessage('THEME NOT SYNCED', 'Plugin needs permission to write to wp-content/plugins/gitsync/temp directory.');
+          gitsync_js_message('THEME NOT SYNCED', 'Plugin needs permission to write to wp-content/plugins/gitsync/temp directory.');
         }
-
-
       } else {
-        jsMessage('THEME NOT SYNCED', 'Release not found.');
-        eNote(['NO RELEASE!']);
+        gitsync_js_message('THEME NOT SYNCED', 'Release not found.');
+        gitsync_log_multi(['NO RELEASE!']);
       }
     }
 
     // ----- Form: DELETE a theme -----
     if (isset( $_POST['delete_a_theme'])) {
-      eLog('Delete a Theme',24, '-');
-      eNote( ['Delete repo',$_POST['repo']]);
+      gitsync_log('Delete a Theme',24, '-');
+      gitsync_log_multi( ['Delete repo',$_POST['repo']]);
 
       $idx = -1;
       $toDelete = '';
@@ -197,21 +206,33 @@
       }
 
       if ($idx > -1){
-        eNote( ['idx = '. $idx . ' ' . $toDelete]);
+        gitsync_log_multi( ['idx = '. $idx . ' ' . $toDelete]);
 
         $theme = $options->themes[$idx];
         $parse = parse_url($theme->uri);
         $parts = explode("/",$parse['path']);
 
         if (end($parts) !== ''){
-          eNote( ["Deleting Directory: " , get_theme_root() . '/' . end($parts)]);
-          removeDir(get_theme_root() . '/' .end($parts));
+          gitsync_log_multi( ["Deleting Directory: " , get_theme_root() . '/' . end($parts)]);
+          gitsync_remove_directory(get_theme_root() . '/' .end($parts));
+          gitsync_js_message('THEME DELETED', 'Theme ' . end($parts) . ' removed.');
         }
 
       } else {
-        jsMessage('THEME NOT DELETED', 'Theme not found.');
+        gitsync_js_message('THEME NOT DELETED', 'Theme not found.');
       }
 
+    }
+
+    // ----- Form: UNTRACK a theme -----
+    if (isset( $_POST['untrack_a_theme'])) {
+      if (isset( $_POST['key'])) {
+        $san_key = sanitize_key($_POST['key']);
+        gitsync_log_multi(['DELETE A KEY', $san_key]);
+        array_splice($options->themes, $san_key, 1);
+        gitsync_update_githubsync_data($options);
+        gitsync_js_message('THEME REMOVED', 'Theme no longer tracked.');
+      }
     }
 
   }
@@ -221,16 +242,15 @@
     add_menu_page( 'Git Sync', 'Git Sync', 'manage_options', 'git-sync', 'gitsync_init' );
   }
   function gitsync_init(){
-    $options       = get_options();
+    $options       = gitsync_get_options();
     wp_enqueue_style('gitsync-css',plugin_dir_url('gitsync').'gitsync/gitsync.css');
     wp_enqueue_script('gitsync-script', plugin_dir_url('gitsync').'gitsync/gitsync.js', array(), 1.0, false);
 
-    eNote(['Tracked Themes']);
+    gitsync_log_multi(['Tracked Themes']);
     foreach ($options->themes as $key => $theme) {
-      eNote( [$key . ' ' . $theme->uri . ' Token: ' . $theme->token]);
+      gitsync_log_multi( [$key . ' ' . $theme->uri . ' Token: ' . $theme->token]);
     }
     ?>
-
     <h1>Git Sync</h1>
 
     <div class="GS-title">Add a Theme from GitHub</div>
@@ -291,10 +311,16 @@
         <div class="GS-repo-item-title">
           <?php echo $theme->uri;?>
         </div>
-        <div class="GS-repo-item">
+        <div class="GS-repo-item-button">
           <form method="post" action="">
             <input type="hidden" name="repo" value="<?php echo $uri;?>">
-            <input class="GS-delete button" type="submit" name="delete_a_theme" value="Uninstall Theme" />
+            <input class="GS-delete button" type="submit" name="delete_a_theme" value="Delete Theme" />
+          </form>
+        </div>
+        <div class="GS-repo-item-button">
+          <form method="post" action="">
+            <input type="hidden" name="key" value="<?php echo $key;?>">
+            <input class="GS-delete button" type="submit" name="untrack_a_theme" value="Stop Tracking Theme" />
           </form>
         </div>
       </div>

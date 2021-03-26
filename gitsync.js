@@ -1,4 +1,3 @@
-
 gitsync.popup = function(){
   var parentDiv = document.body;
   var bkDiv = document.createElement("div");
@@ -36,7 +35,6 @@ gitsync.close = function(){
 }
 
 
-if (gitsync !== null){
-  console.log(gitsync.action);
+if (gitsync.title !== ''){
   gitsync.popup();
 }

@@ -79,12 +79,20 @@
 }
 
 .GS-repo-item{
-  flex-basis: 140px;
+  flex-basis: 100px;
+  flex-shrink: 1;
 }
 
 .GS-repo-item-title{
-  flex-grow: auto;
+  flex-grow: 1;
   line-height: 28px;
+}
+
+.GS-repo-item-button{
+  flex-basis: auto;
+  flex-shrink: 1;
+  padding-left: 10px;
+  padding-right: 10px;
 }
 
 .GS-preview-image{

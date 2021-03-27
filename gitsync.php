@@ -72,15 +72,22 @@
     return json_decode($options);
   }
 
-  function gitsync_remove_directory($target)
-  {
+  function gitsync_remove_directory($target){
+    $ok = TRUE;
     if (!file_exists($target)) { return; }
     $directory = new RecursiveDirectoryIterator($target,  FilesystemIterator::SKIP_DOTS);
     $files = new RecursiveIteratorIterator($directory, RecursiveIteratorIterator::CHILD_FIRST);
     foreach ($files as $file) {
-      if (is_dir($file)) { rmdir($file); } else { unlink($file); }
+      if (is_dir($file)) {
+        rmdir($file);
+      } else {
+        if (!unlink($file)){
+          $ok = FALSE;
+        }
+      }
     }
     rmdir($target);
+    return $ok;
   }
 
   function gitsync_update_githubsync_data($options){
@@ -190,12 +197,13 @@
     // ----- Form: DELETE a theme -----
     if (isset( $_POST['delete_a_theme'])) {
       gitsync_log('Delete a Theme',24, '-');
-      gitsync_log_multi( ['Delete repo',$_POST['repo']]);
+      $repo_delete = esc_url_raw($_POST['repo']);
+      gitsync_log_multi( ['Delete repo', $repo_delete]);
 
       $idx = -1;
       $toDelete = '';
 
-      $post_uri = parse_url($_POST['repo']);
+      $post_uri = parse_url($repo_delete);
       foreach ($options->themes as $key => $theme) {
         $test_uri = parse_url( $theme->uri );
         $test_add = '/repos' . $test_uri['path'] . '/releases';
@@ -214,8 +222,12 @@
 
         if (end($parts) !== ''){
           gitsync_log_multi( ["Deleting Directory: " , get_theme_root() . '/' . end($parts)]);
-          gitsync_remove_directory(get_theme_root() . '/' .end($parts));
-          gitsync_js_message('THEME DELETED', 'Theme ' . end($parts) . ' removed.');
+          $test_delete = gitsync_remove_directory(get_theme_root() . '/' .end($parts));
+          if ($test_delete) {
+            gitsync_js_message('THEME DELETED', 'Theme ' . end($parts) . ' removed.');
+          } else {
+            gitsync_js_message('THEME NOT DELETED', 'Theme ' . end($parts) . ' could not be removed.');
+          }
         }
 
       } else {

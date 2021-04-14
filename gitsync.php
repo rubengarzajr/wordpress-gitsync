@@ -11,7 +11,7 @@
 
 
   function my_admin_enqueue($hook_suffix) {
-      if($hook_suffix == 'git-sync') {
+      if($hook_suffix == 'toplevel_page_git-sync') {
         echo "<script type=\"text/javascript\">";
         echo "gitsync={title:'', message:''};";
         echo "</script>";

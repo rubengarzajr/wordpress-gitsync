@@ -9,13 +9,16 @@
   License: GPL2
   */
 
-?>
 
-<script type="text/javascript">
-  gitsync={title:'', message:''};
-</script>
+  function my_admin_enqueue($hook_suffix) {
+      if($hook_suffix == 'git-sync') {
+        echo "<script type=\"text/javascript\">";
+        echo "gitsync={title:'', message:''};";
+        echo "</script>";
+      }
+  }
+  add_action('admin_enqueue_scripts', 'my_admin_enqueue');
 
-<?php
 
   $gitsync_debug_mode = FALSE;
 
@@ -52,6 +55,7 @@
   }
 
   function gitsync_js_message($title, $message){
+    if ($title !== '') {
     ?>
     <script type="text/javascript">
       gitsync = {
@@ -60,6 +64,7 @@
       };
     </script>
     <?php
+    }
   }
 
   // Helper Functions
@@ -101,8 +106,6 @@
   add_action( 'init', 'gitsync_submit_form' );
   function gitsync_submit_form() {
     $options = gitsync_get_options();
-    error_log( print_r('options', true ) );
-    error_log( print_r($options, true ) );
 
     // ----- Form: ADD a theme -----
     if( isset( $_POST['add_a_theme'] ) ) {
@@ -163,9 +166,8 @@
           if ($zip->open($file) === TRUE) {
               $zip->extractTo(plugin_dir_path( __FILE__ ) . 'temp/' . $repoSync);
               $zip->close();
-              error_log( print_r('OK', true ) );
           } else {
-              error_log( print_r("OH NO", true ) );
+              gitsync_log_multi(['Error:','Zip Error']);
           }
 
           unlink($file);

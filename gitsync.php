@@ -257,8 +257,8 @@
   }
   function gitsync_init(){
     $options       = gitsync_get_options();
-    wp_enqueue_style('gitsync-css',plugin_dir_url('gitsync').'gitsync/gitsync.css');
-    wp_enqueue_script('gitsync-script', plugin_dir_url('gitsync').'gitsync/gitsync.js', array(), 1.0, false);
+    wp_enqueue_style('gitsync-css',plugin_dir_url('gitsync').'git-sync/gitsync.css');
+    wp_enqueue_script('gitsync-script', plugin_dir_url('gitsync').'git-sync/gitsync.js', array(), 1.0, false);
 
     gitsync_log_multi(['Tracked Themes']);
     foreach ($options->themes as $key => $theme) {

@@ -2,30 +2,35 @@
   /*
   Plugin Name: Git Sync
   Plugin URI:
-  description: This pluging gits themes from git
-  Version: 1.0.0
+  description: This pluging gets themes tagged as release from git
+  Version: 1.1.0
   Author: Ruben Garza, Jr.
   Author URI:
   License: GPL2
   */
 
+?>
 
+<script type="text/javascript">
+  gitsync = {
+    title:'',
+    message:''
+  };
+</script>
+
+<?php
   function my_admin_enqueue($hook_suffix) {
       if($hook_suffix == 'toplevel_page_git-sync') {
-        echo "<script type=\"text/javascript\">";
-        echo "gitsync={title:'', message:''};";
-        echo "</script>";
       }
   }
   add_action('admin_enqueue_scripts', 'my_admin_enqueue');
-
 
   $gitsync_debug_mode = FALSE;
 
   function gitsync_log($str,$numChar,$char){
     global $gitsync_debug_mode;
     if (!$gitsync_debug_mode){return;}
-    $len     = strlen($str);
+    $len = strlen($str);
     if($len % 2 !== 0){
       $str .= " ";
       $len ++;
@@ -58,13 +63,54 @@
     if ($title !== '') {
     ?>
     <script type="text/javascript">
-      gitsync = {
-        title:'<?php echo $title; ?>',
-        message:'<?php echo $message; ?>'
-      };
+      gitsync.title   += '<?php echo $title; ?>';
+      gitsync.message += '<?php echo $message; ?>';
     </script>
     <?php
     }
+  }
+
+  function getRepo($theme){
+    $args = array();
+    if ($theme->token !=='') {
+      $args = array(
+        'headers' => array(
+          'Authorization' => 'token ' . $theme->token,
+          'Accept' => 'application/vnd.github.v3+json'
+        ),
+      );
+    }
+    $parse = parse_url($theme->uri);
+    $uri   = "https://api.{$parse['host']}/repos{$parse['path']}/releases";
+    $githubAPIResult = wp_remote_retrieve_body( wp_remote_get( $uri, $args ) );
+    $hasReleases = FALSE;
+    $message = '';
+
+    if ( isJson($githubAPIResult) ) {
+      $githubAPIResult = @json_decode( $githubAPIResult );
+
+      if (!is_array($githubAPIResult)){
+        if (property_exists($githubAPIResult,'message')){
+          gitsync_log_multi(['message',$githubAPIResult->message]);
+          $message = $githubAPIResult->message;
+        }
+      } else {
+        if (count($githubAPIResult) > 0){ $hasReleases = TRUE; }
+      }
+    }
+
+    $to_return = new stdClass();
+    $to_return->result      = $githubAPIResult;
+    $to_return->args        = $args;
+    $to_return->parse       = $parse;
+    $to_return->message     = $message;
+    $to_return->hasReleases = $hasReleases;
+    return $to_return;
+  }
+
+  function isJson($string){
+    json_decode($string);
+    return json_last_error() === JSON_ERROR_NONE;
   }
 
   // Helper Functions
@@ -112,14 +158,21 @@
       gitsync_log('Add a Theme',  24, '-');
       $error = FALSE;
 
-      if (!isset($_POST['furi']) || $_POST['furi'] == '') { $error = TRUE; }
+      gitsync_log_multi(['post',$_POST]);
 
-      if ($error) {
-        gitsync_js_message('THEME ADD ERROR', 'Could not add this theme. Please check the URL address.');
-        gitsync_log_multi(['THEME ADD ERROR', 'Could not add this theme.']);
+      if (!isset($_POST['furi']) || $_POST['furi'] == '') { $error = TRUE; }
+      $temp_theme        = new stdClass();
+      $temp_theme->uri   = esc_url_raw($_POST['furi']);
+      $temp_theme->token = sanitize_text_field($_POST['ftok']);
+      $message = 'Could not add this theme. Please check the URL address.';
+      $repo_result = getRepo($temp_theme);
+      if ($repo_result->message != '') {$message = $repo_result->message;}
+      if ($error || $repo_result->message != '') {
+        gitsync_js_message('THEME ADD ERROR', $message);
+        gitsync_log_multi(['THEME ADD ERROR', $message]);
         return;
       }
-      $newTheme = array("uri"=>esc_url_raw($_POST['furi']), "token"=>sanitize_key($_POST['ftok']));
+      $newTheme = array("uri"=>esc_url_raw($_POST['furi']), "token"=>sanitize_text_field($_POST['ftok']));
       array_push($options->themes, $newTheme);
       gitsync_update_githubsync_data($options);
       gitsync_js_message('THEME ADDED', 'Theme at ' . esc_url_raw($_POST['furi']) . ' was added.');
@@ -128,10 +181,10 @@
     // ----- Form: SYNC a theme -----
     if( isset( $_POST['sync_a_theme'] ) ) {
       gitsync_log('Sync a Theme', 24, '-');
-      $theme = $options->themes[sanitize_key($_POST['key'])];
+      $theme = $options->themes[sanitize_text_field($_POST['key'])];
 
       if (!empty($_POST['reposync'])) {
-        $repoSync = sanitize_key($_POST['reposync']);
+        $repoSync = sanitize_text_field($_POST['reposync']);
         $args = array();
         if ($theme->token !=='') {
           $args = array(
@@ -241,7 +294,7 @@
     // ----- Form: UNTRACK a theme -----
     if (isset( $_POST['untrack_a_theme'])) {
       if (isset( $_POST['key'])) {
-        $san_key = sanitize_key($_POST['key']);
+        $san_key = sanitize_text_field($_POST['key']);
         gitsync_log_multi(['DELETE A KEY', $san_key]);
         array_splice($options->themes, $san_key, 1);
         gitsync_update_githubsync_data($options);
@@ -285,27 +338,11 @@
 
     <?php
     foreach ($options->themes as $key => $theme) {
-      $args = array();
-      if ($theme->token !=='') {
-        $args = array(
-          'headers' => array(
-            'Authorization' => 'token ' . $theme->token,
-            'Accept' => 'application/vnd.github.v3+json'
-          ),
-        );
-      }
+      $result_repo = getRepo($theme);
+      $parse       = $result_repo->parse;
 
-      $parse = parse_url($theme->uri);
-      $uri   = "https://api.{$parse['host']}/repos{$parse['path']}/releases";
-      $githubAPIResult = wp_remote_retrieve_body( wp_remote_get( $uri, $args ) );
-      $hasReleases = FALSE;
-
-      if ( ! empty( $githubAPIResult ) ) {
-        $githubAPIResult = @json_decode( $githubAPIResult );
-        if (count($githubAPIResult) > 0){ $hasReleases = TRUE; }
-      }
       $theme_image = 'https://api.' . $parse['host'] . '/repos'. $parse['path'] . '/contents/screenshot.png';
-      $imgGetR     = wp_remote_get($theme_image, $args);
+      $imgGetR     = wp_remote_get($theme_image, $result_repo->args);
       $imgBody     = wp_remote_retrieve_body($imgGetR);
       $imgJson     = json_decode($imgBody);
 
@@ -313,13 +350,18 @@
       $foundImage           = FALSE;
 
       if (is_object($imgJson)) {
-        $githubAPIResultImage = $imgJson->content;
-        $foundImage = TRUE;
+        if (property_exists($imgJson, 'content')){
+          $githubAPIResultImage = $imgJson->content;
+          $foundImage = TRUE;
+        }
       } else {
         // Make a default x or something
       }
 
       ?>
+      <div id="gitsync-error-dialog" style="max-width:800px">
+        <h3>Message: <?php echo $result_repo->message;?> </h3>
+      </div>
       <div class="GS-repo">
         <div class="GS-repo-item"></div>
         <div class="GS-repo-item-title">
@@ -341,7 +383,9 @@
       <div class="GS-itembox">
         <div class="GS-itembox-item">
           <?php
-            if ($hasReleases) {
+            gitsync_log_multi(['result_repo',$result_repo]);
+
+            if ($result_repo->hasReleases) {
           ?>
             <div class="GS-itemtitle">Available Releases:</div>
             <div>
@@ -349,7 +393,7 @@
               <input type="hidden" name="key" value="<?php echo $key;?>">
               <select name="reposync" class="GS-reposync">
               <?php
-                foreach ($githubAPIResult as $release) { ?>
+                foreach ($result_repo->result as $release) { ?>
                   <option value="<?php echo $release->tag_name ?>"><?php echo $release->tag_name ?></option>'
                 <?php } ?>
               </select>

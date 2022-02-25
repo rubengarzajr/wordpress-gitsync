@@ -9,23 +9,13 @@
   License: GPL2
   */
 
-?>
-
-<script type="text/javascript">
-  gitsync = {
-    title:'',
-    message:''
-  };
-</script>
-
-<?php
-  function my_admin_enqueue($hook_suffix) {
-      if($hook_suffix == 'toplevel_page_git-sync') {
-      }
-  }
-  add_action('admin_enqueue_scripts', 'my_admin_enqueue');
-
   $gitsync_debug_mode = FALSE;
+
+  // add_action('admin_enqueue_scripts', 'my_admin_enqueue');
+  // function my_admin_enqueue($hook_suffix) {
+  //   if($hook_suffix == 'toplevel_page_git-sync') {
+  //   }
+  // }
 
   function gitsync_log($str,$numChar,$char){
     global $gitsync_debug_mode;
@@ -70,7 +60,7 @@
     }
   }
 
-  function getRepo($theme){
+  function gitsync_getRepo($theme){
     $args = array();
     if ($theme->token !=='') {
       $args = array(
@@ -86,7 +76,7 @@
     $hasReleases = FALSE;
     $message = '';
 
-    if ( isJson($githubAPIResult) ) {
+    if ( gitsync_isJson($githubAPIResult) ) {
       $githubAPIResult = @json_decode( $githubAPIResult );
 
       if (!is_array($githubAPIResult)){
@@ -108,12 +98,11 @@
     return $to_return;
   }
 
-  function isJson($string){
+  function gitsync_isJson($string){
     json_decode($string);
     return json_last_error() === JSON_ERROR_NONE;
   }
 
-  // Helper Functions
   function gitsync_get_options(){
     $options = get_option('gitsyncplugin');
     if ($options === FALSE){
@@ -145,12 +134,24 @@
     update_option('gitsyncplugin', json_encode($options));
   }
 
-  gitsync_log('RUN PLUGIN', 80, '=');
-  gitsync_log_multi([date("d-m-Y h:i:s")]);
-
   // Handle form submissions
   add_action( 'init', 'gitsync_submit_form' );
   function gitsync_submit_form() {
+
+    gitsync_log_multi(['Current Page: '. $_SERVER['REQUEST_URI']]);
+    if (!str_contains($_SERVER['REQUEST_URI'], 'page=git-sync')) {
+        return;
+    }
+
+    ?>
+    <script type="text/javascript">
+      gitsync = {
+        title:'',
+        message:''
+      };
+    </script>
+    <?php
+
     $options = gitsync_get_options();
 
     // ----- Form: ADD a theme -----
@@ -165,7 +166,7 @@
       $temp_theme->uri   = esc_url_raw($_POST['furi']);
       $temp_theme->token = sanitize_text_field($_POST['ftok']);
       $message = 'Could not add this theme. Please check the URL address.';
-      $repo_result = getRepo($temp_theme);
+      $repo_result = gitsync_getRepo($temp_theme);
       if ($repo_result->message != '') {$message = $repo_result->message;}
       if ($error || $repo_result->message != '') {
         gitsync_js_message('THEME ADD ERROR', $message);
@@ -253,16 +254,13 @@
     if (isset( $_POST['delete_a_theme'])) {
       gitsync_log('Delete a Theme',24, '-');
       $repo_delete = esc_url_raw($_POST['repo']);
-      gitsync_log_multi( ['Delete repo', $repo_delete]);
+      $idx         = -1;
+      $toDelete    = '';
+      $post_uri    = parse_url($repo_delete);
 
-      $idx = -1;
-      $toDelete = '';
-
-      $post_uri = parse_url($repo_delete);
       foreach ($options->themes as $key => $theme) {
         $test_uri = parse_url( $theme->uri );
-        $test_add = '/repos' . $test_uri['path'] . '/releases';
-        if ($post_uri['path'] === $test_add){
+        if ($post_uri['path'] === $test_uri['path']){
           $idx = $key;
           $toDelete = $test_uri['path'];
         };
@@ -293,6 +291,7 @@
 
     // ----- Form: UNTRACK a theme -----
     if (isset( $_POST['untrack_a_theme'])) {
+      gitsync_log_multi(['untrack_a_theme',$_POST['untrack_a_theme']]);
       if (isset( $_POST['key'])) {
         $san_key = sanitize_text_field($_POST['key']);
         gitsync_log_multi(['DELETE A KEY', $san_key]);
@@ -304,12 +303,16 @@
 
   }
 
+
+  //---------- Main ----------//
+
   add_action('admin_menu', 'gitsync_setup_menu');
   function gitsync_setup_menu(){
     add_menu_page( 'Git Sync', 'Git Sync', 'manage_options', 'git-sync', 'gitsync_init' );
   }
+
   function gitsync_init(){
-    $options       = gitsync_get_options();
+    $options = gitsync_get_options();
     wp_enqueue_style('gitsync-css',plugin_dir_url('gitsync').'git-sync/gitsync.css');
     wp_enqueue_script('gitsync-script', plugin_dir_url('gitsync').'git-sync/gitsync.js', array(), 1.0, false);
 
@@ -317,6 +320,10 @@
     foreach ($options->themes as $key => $theme) {
       gitsync_log_multi( [$key . ' ' . $theme->uri . ' Token: ' . $theme->token]);
     }
+
+    gitsync_log('RUN PLUGIN', 20, '=');
+    gitsync_log_multi([date("d-m-Y h:i:s")]);
+
     ?>
     <h1>Git Sync</h1>
 
@@ -338,7 +345,7 @@
 
     <?php
     foreach ($options->themes as $key => $theme) {
-      $result_repo = getRepo($theme);
+      $result_repo = gitsync_getRepo($theme);
       $parse       = $result_repo->parse;
 
       $theme_image = 'https://api.' . $parse['host'] . '/repos'. $parse['path'] . '/contents/screenshot.png';
@@ -369,7 +376,7 @@
         </div>
         <div class="GS-repo-item-button">
           <form method="post" action="">
-            <input type="hidden" name="repo" value="<?php echo $uri;?>">
+            <input type="hidden" name="repo" value="<?php echo $theme->uri;?>">
             <input class="GS-delete button" type="submit" name="delete_a_theme" value="Delete Theme" />
           </form>
         </div>
@@ -383,8 +390,6 @@
       <div class="GS-itembox">
         <div class="GS-itembox-item">
           <?php
-            gitsync_log_multi(['result_repo',$result_repo]);
-
             if ($result_repo->hasReleases) {
           ?>
             <div class="GS-itemtitle">Available Releases:</div>
